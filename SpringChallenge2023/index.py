@@ -15,6 +15,8 @@ total_christals = 0
 remain_christals = 0
 total_eggs = 0
 remain_eggs = 0
+my_score = 0
+opp_score = 0
 
 FORCE_STRATEGY_2 = 10
 
@@ -60,17 +62,18 @@ def print_commands_in_one_row(commands):
     for c in commands:
         if c['type'] == 'LINE':
             row.append('LINE {} {} {}'.format(c['source'], c['target'], c['strength']))
-        elif c['type'] == 'BEACON':
+        elif c['type'] == 'BEACON' and c['strength'] > 0:
             row.append('BEACON {} {}'.format(c['target'], c['strength']))
     print(';'.join(row))
 
 
 def translate_roads_to_commands(roads, cells_under_attack):
     commands = []
-    print('cells_under_attack: ', cells_under_attack, file=sys.stderr, flush=True)
     for cell in cells_under_attack:
-        print('cell: ', cell, roads[cell], file=sys.stderr, flush=True)
+        target = roads[cell][-1]
+        # print("roads", roads[cell], file=sys.stderr, flush=True)
         for r in roads[cell]:
+            strength = cells[target]['resources']
             commands = insert_in_order(commands, {
                 'type': 'BEACON',	
                 'target': r,
@@ -79,10 +82,10 @@ def translate_roads_to_commands(roads, cells_under_attack):
     return commands
 
 def check_if_near_cells_under_attack(cell, distanceFromBase, cells_under_attack):
-    roads= [i for i in range(number_of_cells)]
+    roads= [[] for i in range(number_of_cells)]
     visited = []
     # add cell neighs to next_cells if not visited
-    next_cells = [n for n in cells[cell]['neighs']]
+    next_cells = [n for n in cells[cell]['neighs'] if n != -1]
     distance = 0
     while len(next_cells) > 0 and distance < distanceFromBase:
         distance += 1
@@ -109,44 +112,65 @@ def strategy3():
     # if a cell contians crystal or eggs, send ants to it
     road_for_cells =  [[[b] for i in range(number_of_cells)] for b in my_bases]
     r = 0
-    available_ants = total_my_ants - len(my_bases)
-    visited = []
-    next_cells = my_bases
+    visited = my_bases.copy()
     egg_taking = 0 # egg in the cell under attack
-    cells_under_attack = my_bases.copy()
-    distance = -1
-    commands = []
-    available_ants = total_my_ants - len(my_bases)
-    while r < len(road_for_cells):
-        while len(next_cells) > 0 and distance < available_ants:
-            distance += 1
+    cells_under_attack = [] #my_bases.copy()
+    commands = [] 
+    available_ants = total_my_ants
+    distance = 0
+    next_cells = [[n for n in cells[my_bases[r]]['neighs'] if n != -1] for r in range(len(my_bases))]
+    goOn = True
+    christals_under_attack = 0
+    while distance < available_ants and goOn:
+        r = 0
+        distance += 1
+        while r < len(my_bases):
+            # print("next_cells", next_cells, file=sys.stderr, flush=True)
+            # print("available_ants", available_ants, file=sys.stderr, flush=True)
+            # print("distance", distance, file=sys.stderr, flush=True)
             not_enough_eggs = egg_taking + total_my_ants < remain_christals / 2
-            current_cells = next_cells
-            next_cells = []
+            current_cells = next_cells[r]
+            next_cells[r] = []
             for i in current_cells:
+                if distance > available_ants:
+                    break
                 visited.append(i)
                 # add neighs to next_cells if not visited
                 for j in cells[i]['neighs']:
-                    if j not in visited and j != -1 and j not in current_cells and j not in next_cells:
-                        next_cells.append(j)
+                    if j not in visited and j != -1 and j not in current_cells and j not in next_cells[r]:
+                        next_cells[r].append(j)
                         road_for_cells[r][j] = road_for_cells[r][i].copy()
                         road_for_cells[r][j].append(i)  
                 # check cell
-                if cells[i]['type'] == 2 and cells[i]['resources'] > 0:
+                if cells[i]['type'] == 2 and cells[i]['resources'] > 0 and i not in cells_under_attack and christals_under_attack < remain_christals / 2:
                     check_better_road = check_if_near_cells_under_attack(i, distance, cells_under_attack)
                     if check_better_road != None:
-                        pass
+                        road_for_cells[r][i] = check_better_road
+                        available_ants -= len(check_better_road)
                     else:
-                        cells_under_attack.insert(0, i)
-                        road_for_cells[r][i].append(i)
                         available_ants -= distance
-                elif cells[i]['type'] == 1 and cells[i]['resources'] > 0:
                     cells_under_attack.insert(0, i)
-                    egg_taking += cells[i]['resources']
                     road_for_cells[r][i].append(i)
-                    available_ants -= distance
-        commands += translate_roads_to_commands(road_for_cells[r], cells_under_attack)
-        r += 1
+                    christals_under_attack += cells[i]['resources']
+                elif cells[i]['type'] == 1 and cells[i]['resources'] > 0 and i not in cells_under_attack and not_enough_eggs:
+                    check_better_road = check_if_near_cells_under_attack(i, distance, cells_under_attack)
+                    if check_better_road != None:
+                        road_for_cells[r][i] = check_better_road
+                        available_ants -= len(check_better_road)
+                    else:
+                        available_ants -= distance
+                    cells_under_attack.insert(0, i)
+                    road_for_cells[r][i].append(i)
+                    egg_taking += cells[i]['resources']
+            # print("available_ants in end", available_ants, file=sys.stderr, flush=True)
+            commands += translate_roads_to_commands(road_for_cells[r], cells_under_attack)
+            r += 1
+        # check if next_cells is empty
+        goOn = False
+        for i in next_cells:
+            if len(i) > 0:
+                goOn = True
+                break
     return commands
 
 # game loop
@@ -156,6 +180,7 @@ while True:
     turn += 1
     remain_christals = 0
     remain_eggs = 0
+    my_score, opp_score = [int(i) for i in input().split()]
     for i in range(number_of_cells):
         # resources: the current amount of eggs/crystals on this cell
         # my_ants: the amount of your ants on this cell
