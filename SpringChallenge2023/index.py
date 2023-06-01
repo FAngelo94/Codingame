@@ -121,6 +121,7 @@ def strategy3():
     next_cells = [[n for n in cells[my_bases[r]]['neighs'] if n != -1] for r in range(len(my_bases))]
     goOn = True
     christals_under_attack = 0
+    eggs_under_attack = 0
     while distance < available_ants and goOn:
         r = 0
         distance += 1
@@ -128,7 +129,7 @@ def strategy3():
             # print("next_cells", next_cells, file=sys.stderr, flush=True)
             # print("available_ants", available_ants, file=sys.stderr, flush=True)
             # print("distance", distance, file=sys.stderr, flush=True)
-            not_enough_eggs = egg_taking + total_my_ants < remain_christals / 2
+            not_enough_eggs =  total_my_ants < remain_christals / 2
             current_cells = next_cells[r]
             next_cells[r] = []
             for i in current_cells:
@@ -152,7 +153,7 @@ def strategy3():
                     cells_under_attack.insert(0, i)
                     road_for_cells[r][i].append(i)
                     christals_under_attack += cells[i]['resources']
-                elif cells[i]['type'] == 1 and cells[i]['resources'] > 0 and i not in cells_under_attack and not_enough_eggs:
+                elif cells[i]['type'] == 1 and cells[i]['resources'] > 0 and i not in cells_under_attack and not_enough_eggs and eggs_under_attack < remain_eggs / 2:
                     check_better_road = check_if_near_cells_under_attack(i, distance, cells_under_attack)
                     if check_better_road != None:
                         road_for_cells[r][i] = check_better_road
@@ -162,6 +163,7 @@ def strategy3():
                     cells_under_attack.insert(0, i)
                     road_for_cells[r][i].append(i)
                     egg_taking += cells[i]['resources']
+                    eggs_under_attack += cells[i]['resources']
             # print("available_ants in end", available_ants, file=sys.stderr, flush=True)
             commands += translate_roads_to_commands(road_for_cells[r], cells_under_attack)
             r += 1
